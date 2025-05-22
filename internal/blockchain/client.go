@@ -29,39 +29,39 @@ func (ec *EthereumClient) StoreHash(hash string) (string, error) {
         return "", fmt.Errorf("hash cannot be empty")
     }
 
-    // 2. Convert private key to ECDSA format
+    //Convert private key to ECDSA format
     privateKey, err := crypto.HexToECDSA(os.Getenv("PRIVATE_KEY"))
     if err != nil {
         return "", fmt.Errorf("invalid private key: %v", err)
     }
 
-    // 3. Get public address from private key
+    //Get public address from private key
     publicKey := privateKey.Public()
     publicAddress := crypto.PubkeyToAddress(*publicKey.(*ecdsa.PublicKey))
 
-    // 4. Get the nonce (transaction count) for the account
+    //Get the nonce (transaction count) for the account
     nonce, err := ec.Client.PendingNonceAt(context.Background(), publicAddress)
     if err != nil {
         return "", fmt.Errorf("failed to get nonce: %v", err)
     }
 
-    // 5. Get current gas price
+    //Get current gas price
     gasPrice, err := ec.Client.SuggestGasPrice(context.Background())
     if err != nil {
         return "", fmt.Errorf("failed to get gas price: %v", err)
     }
 
-    // 6. Create the transaction
+    //Create the transaction
     tx := types.NewTransaction(
         nonce,
-        common.Address{}, // To: empty address (we're storing data, not sending ETH)
-        big.NewInt(0),    // Value: 0 ETH
-        100000,          // Gas limit (adjust based on network conditions)
-        gasPrice,        // Gas price
-        []byte(hash), // Data: store the hash in the transaction
+        common.Address{}, 
+        big.NewInt(0),    
+        100000,          
+        gasPrice,        
+        []byte(hash), 
     )
 
-    // 7. Sign the transaction
+    //Sign the transaction
     chainID, err := ec.Client.ChainID(context.Background())
     if err != nil {
         return "", fmt.Errorf("failed to get chain ID: %v", err)
@@ -72,13 +72,13 @@ func (ec *EthereumClient) StoreHash(hash string) (string, error) {
         return "", fmt.Errorf("failed to sign transaction: %v", err)
     }
 
-    // 8. Send the transaction
+    //Send the transaction
     err = ec.Client.SendTransaction(context.Background(), signedTx)
     if err != nil {
         return "", fmt.Errorf("failed to send transaction: %v", err)
     }
 
-    // 9. Return the transaction hash
+    //Return the transaction hash
     return signedTx.Hash().Hex(), nil
 }
 

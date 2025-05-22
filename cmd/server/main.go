@@ -1,13 +1,30 @@
 package main
 
-import "github.com/gofiber/fiber/v2"
+import(
+	"github.com/gofiber/fiber/v2"
+	"blockchain-service/internal/blockchain"
+	"blockchain-service/internal/api"
+	"os"
+)
 
 func main() {
-    app := fiber.New()
+	ethClient, err := blockchain.NewEthereumClient(os.Getenv("NODE_URL"))
+	if err != nil{
+		return
+	}	
 
-    app.Get("/hello-world", func(c *fiber.Ctx) error {
-			return c.SendString("Hello World!")
-    })
+	pdfHandler := &api.PDFHandler{
+		EthClient: ethClient,	
+	}
 
-    app.Listen(":3000")
+	app := fiber.New()
+
+	app.Get("/hello-world", func(c *fiber.Ctx) error {
+		return c.SendString("Hello World!")
+	})
+
+	app.Post("/upload", pdfHandler.UploadPDF)
+	app.Post("/verify", pdfHandler.VerifyPDF)
+
+	app.Listen(":3000")
 }
