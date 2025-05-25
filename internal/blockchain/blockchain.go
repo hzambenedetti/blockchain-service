@@ -17,7 +17,7 @@ type BlockChain struct{
 }
 
 
-func (chain *BlockChain) AddBlock(data string){
+func (chain *BlockChain) CreateInsertBlock(data string){
 	var lastHash []byte
 	
 	err := chain.Database.View(func(txn *badger.Txn) error{
@@ -33,8 +33,11 @@ func (chain *BlockChain) AddBlock(data string){
 	Handle(err)
 
 	block := CreateBlock(data, lastHash)
+	chain.InsertBlock(block)
+}
 
-	err = chain.Database.Update(func(txn *badger.Txn) error{
+func (chain *BlockChain) InsertBlock(block *Block) {
+	err := chain.Database.Update(func(txn *badger.Txn) error{
 		err := txn.Set([]byte(block.Hash), block.Serialize())
 		Handle(err)
 		err = txn.Set([]byte("lh"), block.Hash)

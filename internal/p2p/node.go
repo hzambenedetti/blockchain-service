@@ -2,6 +2,7 @@
 package p2p
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -110,10 +111,12 @@ func (n *BlockchainNode) handlePeerMessage(pm PeerMessage) {
         if !pow.Validate() {
             return
         }
+
+				if !bytes.Equal(blk.PrevHash, n.chain.LastHash){
+					return
+				}	
         // insert
-        if err := n.chain.InsertBlock(blk); err != nil {
-            return
-        }
+        n.chain.InsertBlock(blk)
         // announce
         n.outbound <- NewInvMessage(hex.EncodeToString(blk.Hash), n.chain.Height())
 
