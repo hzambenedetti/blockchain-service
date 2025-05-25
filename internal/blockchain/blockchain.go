@@ -3,6 +3,7 @@ package blockchain
 import(
 	"log"
 	"github.com/dgraph-io/badger/v4"
+	"bytes"
 )
 
 const(
@@ -10,7 +11,8 @@ const(
 )
 
 type BlockChain struct{
-	LastHash []byte	
+	LastHash []byte
+	height uint64 
 	Database *badger.DB
 }
 
@@ -42,6 +44,46 @@ func (chain *BlockChain) AddBlock(data string){
 		return err 
 	})
 	Handle(err)
+	chain.height += 1
+}
+
+func (chain *BlockChain) Height() uint64{
+	return chain.height
+}
+
+func (chain *BlockChain) ContainsBlock(hash  []byte) bool{
+	var block *Block
+	iter := chain.Iterator()
+
+	for{
+		block = iter.Next()
+
+		if bytes.Equal(block.Hash, hash){
+			return true
+		}
+		if len(block.PrevHash) == 0{
+			break
+		}
+	}
+	return false
+}
+
+func (chain *BlockChain) GetBlockByHash(hash []byte) *Block{
+	var block *Block 
+	iter := chain.Iterator()
+
+	for{
+		block = iter.Next()
+
+		if bytes.Equal(block.Hash, hash){
+			return block
+		}
+
+		if len(block.Hash) == 0{
+			break
+		}
+	}
+	return nil
 }
 
 
@@ -75,7 +117,7 @@ func InitBlockChain() *BlockChain{
 		return err
 	})
 		
-	blockchain := BlockChain{lastHash, db}
+	blockchain := BlockChain{lastHash, 1,db}
 	return &blockchain
 }
 

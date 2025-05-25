@@ -7,10 +7,10 @@ import (
 )
 
 type Block struct{
-	Hash []byte
-	Data []byte 
-	PrevHash []byte
-	Nonce int 
+	Hash []byte  `json:"hash"`
+	Data []byte  `json:"data"`
+	PrevHash []byte `json:"prev_hash"`
+	Nonce int `json:"nonce"`
 }
 
 
