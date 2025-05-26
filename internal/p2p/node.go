@@ -56,10 +56,10 @@ func NewBlockchainNode(
 // Run starts the P2P service and enters the main event loop
 func (n *BlockchainNode) Run() error {
     // start networking
-    n.p2p.Start(n.staticPeers)
+    // n.p2p.Start(n.staticPeers)
     // send initial HELLO
-    hello := NewHelloMessage(n.id, n.chain.Height(), n.version, n.staticPeers)
-    n.outbound <- hello
+    // hello := NewHelloMessage(n.id, n.chain.Height(), n.version, n.staticPeers)
+    // n.outbound <- hello
 
     for {
         select {
@@ -129,6 +129,17 @@ func (n *BlockchainNode) handlePeerMessage(pm PeerMessage) {
 func (n *BlockchainNode) Status() (uint64, int) {
     return n.chain.Height(), len(n.p2p.ListPeers())
 }
+
+func (n *BlockchainNode) AddBlockAPI(hash string) (*blockchain.Block, error){ 
+	block := n.chain.CreateInsertBlock(hash)
+	n.outbound <- NewBlockMessage(block)
+	return block, nil
+}
+
+func (n *BlockchainNode) ListBlocksAPI() ([]*blockchain.Block, error){
+	return n.chain.ListBlocks(), nil	
+}
+
 //
 // import(
 // 	"blockchain-service/internal/blockchain"

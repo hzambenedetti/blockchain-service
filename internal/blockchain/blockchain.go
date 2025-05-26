@@ -1,9 +1,11 @@
 package blockchain
 
-import(
-	"log"
-	"github.com/dgraph-io/badger/v4"
+import (
 	"bytes"
+	"encoding/hex"
+	"log"
+
+	"github.com/dgraph-io/badger/v4"
 )
 
 const(
@@ -17,7 +19,7 @@ type BlockChain struct{
 }
 
 
-func (chain *BlockChain) CreateInsertBlock(data string){
+func (chain *BlockChain) CreateInsertBlock(data string) *Block{
 	var lastHash []byte
 	
 	err := chain.Database.View(func(txn *badger.Txn) error{
@@ -34,6 +36,7 @@ func (chain *BlockChain) CreateInsertBlock(data string){
 
 	block := CreateBlock(data, lastHash)
 	chain.InsertBlock(block)
+	return block
 }
 
 func (chain *BlockChain) InsertBlock(block *Block) {
@@ -87,6 +90,26 @@ func (chain *BlockChain) GetBlockByHash(hash []byte) *Block{
 		}
 	}
 	return nil
+}
+
+func (chain *BlockChain) ListBlocks() []*Block{
+	blocks := []*Block{}
+	var block *Block 
+
+	iter := chain.Iterator()
+	counter := 1
+	for{
+		block = iter.Next()
+		blocks = append(blocks, block)
+		log.Printf("\nBLOCK %d: %s", counter, hex.EncodeToString(block.Hash))
+		log.Printf("PREVHASH: %s\n", hex.EncodeToString(block.PrevHash))
+		counter++
+		if len(block.PrevHash) == 0{
+			break
+		}
+	}
+
+	return blocks
 }
 
 
@@ -149,7 +172,7 @@ func (iter *BlockChainIterator) Next() *Block{
 	})	
 	Handle(err)
 		
-	iter.CurrentHash = block.Hash
+	iter.CurrentHash = block.PrevHash
 
 	return block
 }

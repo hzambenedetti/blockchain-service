@@ -1,21 +1,41 @@
 package main
 
-import(
-	"github.com/gofiber/fiber/v2"
-	"blockchain-service/internal/blockchain"
+import (
 	"blockchain-service/internal/api"
-	"os"
+	"blockchain-service/internal/blockchain"
+	"blockchain-service/internal/p2p"
+	"context"
+	"log"
+
+	"github.com/gofiber/fiber/v2"
 )
 
-func main() {
-	ethClient, err := blockchain.NewEthereumClient(os.Getenv("NODE_URL"))
-	if err != nil{
-		return
-	}	
+var staticPeers = [1]string{"localhost:3002"}
 
-	pdfHandler := &api.PDFHandler{
-		EthClient: ethClient,	
+func main() {
+	
+	blockchain := blockchain.InitBlockChain()	
+	ctx := context.Background() 
+
+	node, err := p2p.NewBlockchainNode(
+		ctx,
+		"0",
+		"1",
+		"/ip4/0.0.0.0/udp/9000/quic-v1",
+		staticPeers[:],
+		blockchain,
+	)
+
+	if err != nil{
+		log.Panic(err)
 	}
+
+	pdfHandler := &api.NodeAPIHandler{
+		Node: node,
+	}
+
+	go node.Run()
+
 
 	app := fiber.New()
 
@@ -23,8 +43,8 @@ func main() {
 		return c.SendString("Hello World!")
 	})
 
-	app.Post("/upload", pdfHandler.UploadPDF)
-	app.Post("/verify", pdfHandler.VerifyPDF)
+	app.Post("/upload", pdfHandler.UploadHash)
+	app.Get("/list", pdfHandler.GetBlocks)
 
 	app.Listen(":3000")
 }
