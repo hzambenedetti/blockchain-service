@@ -117,6 +117,7 @@ func InitBlockChain() *BlockChain{
 	var lastHash []byte 
 
 	opts := badger.DefaultOptions(dbPath)
+	opts.ValueLogFileSize = 1 << 27
 
 	db, err := badger.Open(opts)
 	Handle(err)
