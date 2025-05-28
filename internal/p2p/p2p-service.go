@@ -4,6 +4,7 @@ import (
     "bufio"
     "context"
     "fmt"
+    "log" 
     "sync"
 
     libp2p "github.com/libp2p/go-libp2p"
@@ -18,6 +19,7 @@ import (
 // PeerMessage wraps an inbound protocol Message with its sender ID
 type PeerMessage struct {
     From peer.ID
+    To peer.ID
     Msg  *Message
 }
 
@@ -29,10 +31,11 @@ type P2PService struct {
     protocolID protocol.ID
 
     peerLock sync.RWMutex
-    peers    map[peer.ID]peer.AddrInfo
+    connPeers    map[peer.ID]peer.AddrInfo
+    peers map[peer.ID]peer.AddrInfo
 
     Inbound  chan PeerMessage  // incoming messages from network
-    Outbound chan *Message     // outgoing messages to broadcast
+    Outbound chan *PeerMessage     // outgoing messages to broadcast
 }
 
 // NewP2PService constructs and configures a libp2p host listening on listenAddr
@@ -53,6 +56,7 @@ func NewP2PService(parentCtx context.Context, listenAddr string, protoID string)
         cancel:     cancel,
         host:       h,
         protocolID: protocol.ID(protoID),
+        connPeers:      make(map[peer.ID]peer.AddrInfo),
         peers:      make(map[peer.ID]peer.AddrInfo),
         Inbound:    make(chan PeerMessage, 32),
         Outbound:   make(chan *Message, 32),
@@ -99,7 +103,7 @@ func (s *P2PService) Connect(addrStr string) error {
     s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
     // track in-memory
     s.peerLock.Lock()
-    s.peers[info.ID] = *info
+    s.connPeers[info.ID] = *info
     s.peerLock.Unlock()
     return nil
 }
@@ -121,13 +125,14 @@ func (s *P2PService) serveOutbound() {
         select {
         case <-s.ctx.Done():
             return
-        case msg := <-s.Outbound:
-            data, err := EncodeMessage(msg)
-            if err != nil {
-                fmt.Printf("[P2P] encode message error: %v\n", err)
-                continue
-            }
-            s.broadcastBytes(data)
+        case pmsg := <-s.Outbound:
+          s.handleMsg(pmsg)
+            // data, err := EncodeMessage(msg)
+            // if err != nil {
+            //     fmt.Printf("[P2P] encode message error: %v\n", err)
+            //     continue
+            // }
+            // s.broadcastBytes(data)
         }
     }
 }
@@ -155,26 +160,80 @@ func (s *P2PService) broadcastBytes(data []byte) {
 
 // handleStream processes an incoming libp2p stream, decoding messages
 func (s *P2PService) handleStream(stream network.Stream) {
-    defer stream.Close()
-    reader := bufio.NewReader(stream)
-    for {
-        select {
-        case <-s.ctx.Done():
-            return
-        default:
-            msg, err := DecodeNextMessage(reader)
-            if err != nil {
-                // EOF or decode error ends loop
-                return
-            }
-            // deliver to application
-            pm := PeerMessage{From: stream.Conn().RemotePeer(), Msg: msg}
-            select {
-            case s.Inbound <- pm:
-                // delivered
-            case <-s.ctx.Done():
-                return
-            }
-        }
-    }
+  defer stream.Close()
+  reader := bufio.NewReader(stream)
+  
+  msg, err := DecodeNextMessage(reader)
+  if err != nil {
+    // EOF or decode error ends loop
+    log.Printf("Failed to decode text message %v", err)
+    return
+  }
+
+  // deliver to application
+  pm := PeerMessage{
+    From: stream.Conn().RemotePeer(),
+    To: s.host.ID(),
+    Msg: msg,
+  }
+  switch pm.Msg.Type{
+  case MsgTypeHello:
+    s.handleHelloIn(&pm) 
+  case MsgTypeGossip:
+    s.handleGossipIn(&pm) 
+  case MsgTypeGetBlock:
+    s.handleGetBlockIn(&pm)  
+  case MsgTypeBlock:
+    s.handleBlockIn(&pm)
+  }
 }
+
+
+func (s *P2PService) handleMsg(pmsg *PeerMessage){
+  switch pmsg.Msg.Type{
+    case MsgTypeGossip:
+      s.broadcastMsg(pmsg)
+    default:
+     s.sendToPeer(pmsg) 
+  }
+}
+
+func (s *P2PService) handleHelloIn(msg *PeerMessage){
+
+}
+
+func (s *P2PService) handleGossipIn(msg *PeerMessage){
+
+}
+
+func (s *P2PService) handleGetBlockIn(msg *PeerMessage){
+
+}
+
+func (s *P2PService) handleBlockIn(msg *PeerMessage){
+
+}
+
+func (s *P2PService) handleHiIn(msg *PeerMessage){
+
+}
+
+func (s *P2PService) sendToPeer(msg *PeerMessage){
+
+}
+
+func (s *P2PService) broadcastMsg(msg *PeerMessage){
+
+}
+
+// func (s *P2PService) handleGossipOut(msg *Message){
+//
+// }
+//
+// func (s *P2PService) handleGetBlockOut(msg *Message){
+//
+// }
+//
+// func (s *P2PService) handleBlockOut(msg *Message){
+//
+// }

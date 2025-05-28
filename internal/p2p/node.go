@@ -4,8 +4,8 @@ package p2p
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
+	"log"
 
 	"blockchain-service/internal/blockchain"
 )
@@ -17,10 +17,9 @@ type BlockchainNode struct {
     chain       *blockchain.BlockChain
     p2p         *P2PService
     inbound     chan PeerMessage
-    outbound    chan *Message
+    outbound    chan *PeerMessage
     id          string
     version     string
-    staticPeers []string
 }
 
 // NewBlockchainNode constructs a new node with given parameters
@@ -48,7 +47,6 @@ func NewBlockchainNode(
         outbound:    p2pSvc.Outbound,
         id:          id,
         version:     version,
-        staticPeers: staticPeers,
     }
     return node, nil
 }
@@ -79,51 +77,53 @@ func (n *BlockchainNode) Stop() error {
 
 // handlePeerMessage processes an incoming protocol message
 func (n *BlockchainNode) handlePeerMessage(pm PeerMessage) {
-    msg := pm.Msg
-    switch msg.Type {
-    case MsgTypeHello:
-        // integrate new peers
-        for _, addr := range msg.Peers {
-            go n.p2p.Connect(addr)
-        }
-        // optionally respond
-        // n.outbound <- NewHelloMessage(n.id, n.chain.Height(), n.version, n.staticPeers)
-
-    case MsgTypeInv:
-        bh := msg.BlockHash
-        if !n.chain.ContainsBlock([]byte(bh)) {
-            n.outbound <- NewGetBlockMessage(bh)
-        }
-
+    switch pm.Msg.Type {
+    case MsgTypeGossip:
+      n.handleGossip(&pm)
     case MsgTypeGetBlock:
-        bh := msg.BlockHash
-        blk := n.chain.GetBlockByHash([]byte(bh))
-        n.outbound <- NewBlockMessage(blk)
-
+      n.handleGetBlock(&pm)
     case MsgTypeBlock:
-        blk := msg.Block
-        if blk == nil {
-            return
-        }
-				pow := blockchain.NewProof(blk)
-
-        // verify
-        if !pow.Validate() {
-            return
-        }
-
-				if !bytes.Equal(blk.PrevHash, n.chain.LastHash){
-					return
-				}	
-        // insert
-        n.chain.InsertBlock(blk)
-        // announce
-        n.outbound <- NewInvMessage(hex.EncodeToString(blk.Hash), n.chain.Height())
-
+      n.handleBlock(&pm)
     default:
-        // unknown type
+      n.fallbackHandler(&pm)
     }
 }
+
+func (n *BlockchainNode) handleGossip(pmsg *PeerMessage){
+  n.handleBlock(pmsg)
+}
+
+func (n *BlockchainNode) handleGetBlock(pmsg *PeerMessage){
+  bh := pmsg.Msg.BlockHash
+  blk := n.chain.GetBlockByHash([]byte(bh))
+
+  newMsg := PeerMessage{
+    From: pmsg.To,
+    To: pmsg.From,
+    Msg: NewBlockMsg(blk),
+  }
+  n.outbound <- &newMsg 
+}
+
+func (n *BlockchainNode) handleBlock(pmsg *PeerMessage){
+  block := pmsg.Msg.Block
+  pow := blockchain.NewProof(block)
+  if !pow.Validate(){
+    log.Printf("Invalid block POW")
+    return
+  }
+  if !bytes.Equal(block.PrevHash, n.chain.LastHash){
+    log.Printf("block PrevHash != chain.LastHash")
+    return 
+  }
+
+  n.chain.InsertBlock(block)
+
+}
+func (n *BlockchainNode) fallbackHandler(msg *PeerMessage){
+
+}
+
 
 // Status returns basic node status (height and peer count)
 func (n *BlockchainNode) Status() (uint64, int) {
@@ -132,50 +132,10 @@ func (n *BlockchainNode) Status() (uint64, int) {
 
 func (n *BlockchainNode) AddBlockAPI(hash string) (*blockchain.Block, error){ 
 	block := n.chain.CreateInsertBlock(hash)
-	n.outbound <- NewBlockMessage(block)
+  n.outbound <- &PeerMessage{Msg: NewGossipMsg(block, n.chain.Height())}
 	return block, nil
 }
 
 func (n *BlockchainNode) ListBlocksAPI() ([]*blockchain.Block, error){
 	return n.chain.ListBlocks(), nil	
 }
-
-//
-// import(
-// 	"blockchain-service/internal/blockchain"
-// )
-//
-// type BlockChainNode struct{
-// 	Address string
-// 	ID string 
-// 	Blockchain *blockchain.BlockChain
-// 	Peers []string 
-// }
-//
-// func (node *BlockChainNode) Run(){
-// 	node.StartNode()
-//
-// 	//loop
-// }
-//
-// func (node *BlockChainNode) StartNode(){
-// 	//Start Socket
-// 	
-// 	//Connect to peers 
-// }
-//
-// func (node *BlockChainNode) GossipBlock(block *blockchain.Block){
-// 	//Iterate through peers sending the block 
-// }
-//
-// func (node *BlockChainNode) ReceiveBlock(from string, block blockchain.Block){
-// 	//Verify Proof of Work 
-//
-// 	//Verify if Block is not already in the blockchain
-//
-// 	//Insert block in the blockchain 
-//
-// 	//GossipBlock
-// }
-//
-//
