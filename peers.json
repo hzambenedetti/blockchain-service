@@ -1,0 +1,17 @@
+[
+  {
+    "id": "12D3KooWQv4rcaWBgC76TJm5E1U9BNF1cQ5vRd3cC91xmF9G7MCS",
+    "privKey": "CAESQLfw3h/kycwyWtA6ZfU2e+xopGvqetTLW8R8HYvjrSSZ4FU2nY/5XWkXo3nL94QkfhlegymyWJbiJQ6hEHnS+8c=",
+    "address": "/ip4/127.0.0.1/tcp/10000"
+  },
+  {
+    "id": "12D3KooWEKD9eAcGz3h1ZxWvyqbNwkYqocLhjYUPykCjbXgqTAta",
+    "privKey": "CAESQCXV0fKtpvUgv+natKr5+DTGN6A4oYIBrrFU3Q4P1FwJQtJksa/aHaa2kCnV1zOAlh5VUQdYVUC4LLy+XFhDnOM=",
+    "address": "/ip4/127.0.0.1/tcp/10001"
+  },
+  {
+    "id": "12D3KooWNoSrGL1xEwaqUb2vFMho5KcAkeDSgzbaG3ZVMyPhx2Cp",
+    "privKey": "CAESQHdpAjgoC5bwVdOrczr+9CQ2douTD6lAa1nFZLWgv88SwOukesdkiESRB+yLBLyVHhJkdUIDYCFBdXrqKAfVsKk=",
+    "address": "/ip4/127.0.0.1/tcp/10002"
+  }
+]
