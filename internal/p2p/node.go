@@ -8,6 +8,8 @@ import (
 	"log"
 
 	"blockchain-service/internal/blockchain"
+
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // BlockchainNode ties together the P2P service and the blockchain logic
@@ -28,7 +30,7 @@ func NewBlockchainNode(
     id string,
     version string,
     listenAddr string,
-    staticPeers []string,
+    staticPeers []peer.ID,
     chain *blockchain.BlockChain,
 ) (*BlockchainNode, error) {
     ctx, cancel := context.WithCancel(parentCtx)

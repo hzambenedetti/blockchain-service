@@ -2,18 +2,34 @@ package main
 
 import (
 	"blockchain-service/internal/api"
+	"blockchain-service/internal/utils"
 	"blockchain-service/internal/blockchain"
 	"blockchain-service/internal/p2p"
 	"context"
 	"log"
+	"flag"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-var staticPeers = [1]string{"localhost:3002"}
+const(
+	peersPath = "peers.json"
+)
 
 func main() {
-	
+	nodeIdx := flag.Int("nodeIdx", 0, "Node index")
+
+	peers, err := utils.LoadPeers(peersPath)
+	if err != nil{
+		log.Panicf("Error loading peers: %v", err)
+	}
+	if *nodeIdx >= len(peers){
+		log.Panicf("Node at index %d does not exist", *nodeIdx)
+	}
+
+	peer := peers[*nodeIdx]
+
+
 	blockchain := blockchain.InitBlockChain()	
 	ctx := context.Background() 
 

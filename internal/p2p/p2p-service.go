@@ -1,19 +1,20 @@
 package p2p
 
 import (
-    "bufio"
-    "context"
-    "fmt"
-    "log" 
-    "sync"
+	"blockchain-service/internal/utils"
+	"bufio"
+	"context"
+	"fmt"
+	"log"
+	"sync"
 
-    libp2p "github.com/libp2p/go-libp2p"
-    host "github.com/libp2p/go-libp2p/core/host"
-    network "github.com/libp2p/go-libp2p/core/network"
-    peer "github.com/libp2p/go-libp2p/core/peer"
-    peerstore "github.com/libp2p/go-libp2p/core/peerstore"
-    protocol "github.com/libp2p/go-libp2p/core/protocol"
-    multiaddr "github.com/multiformats/go-multiaddr"
+	libp2p "github.com/libp2p/go-libp2p"
+	host "github.com/libp2p/go-libp2p/core/host"
+	network "github.com/libp2p/go-libp2p/core/network"
+	peer "github.com/libp2p/go-libp2p/core/peer"
+	peerstore "github.com/libp2p/go-libp2p/core/peerstore"
+	protocol "github.com/libp2p/go-libp2p/core/protocol"
+	multiaddr "github.com/multiformats/go-multiaddr"
 )
 
 // PeerMessage wraps an inbound protocol Message with its sender ID
@@ -40,11 +41,22 @@ type P2PService struct {
 
 // NewP2PService constructs and configures a libp2p host listening on listenAddr
 // and sets up the service, but does not start dialing peers.
-func NewP2PService(parentCtx context.Context, listenAddr string, protoID string) (*P2PService, error) {
+func NewP2PService(parentCtx context.Context, hostInfo utils.PeerInfo , protoID string) (*P2PService, error) {
     ctx, cancel := context.WithCancel(parentCtx)
-    
+  	
+		listenAddr, err := multiaddr.NewMultiaddr(hostInfo.Address)
+		if err != nil{
+			return nil, fmt.Errorf("Failed to create p2p address: %v", err)
+		}
+
+		privKey, err := utils.UnmarshalPrivateKey(hostInfo.PrivKey)
+		if err != nil{
+			return nil, fmt.Errorf("Failed to UnmarshalPrivateKey: %v", err)
+		}
+
     h, err := libp2p.New(
-        libp2p.ListenAddrStrings(listenAddr),
+        libp2p.ListenAddrs(listenAddr),
+				libp2p.Identity(privKey),
     )
     if err != nil {
         cancel()
@@ -59,7 +71,7 @@ func NewP2PService(parentCtx context.Context, listenAddr string, protoID string)
         connPeers:      make(map[peer.ID]peer.AddrInfo),
         peers:      make(map[peer.ID]peer.AddrInfo),
         Inbound:    make(chan PeerMessage, 32),
-        Outbound:   make(chan *Message, 32),
+        Outbound:   make(chan *PeerMessage, 32),
     }
 
     // register handler for incoming streams
@@ -68,15 +80,10 @@ func NewP2PService(parentCtx context.Context, listenAddr string, protoID string)
 }
 
 // Start launches background tasks: dialing static peers and outbound broadcaster
-func (s *P2PService) Start(staticPeers []string) {
+func (s *P2PService) Start(staticPeers []utils.PeerInfo) {
     // Dial static peers
-    for _, addrStr := range staticPeers {
-        go func(a string) {
-            if err := s.Connect(a); err != nil {
-                // log and ignore
-                fmt.Printf("[P2P] connect to %s failed: %v\n", a, err)
-            }
-        }(addrStr)
+    for _, peer := range staticPeers {
+        go s.Connect(peer)
     }
     // Start outbound broadcaster
     go s.serveOutbound()
@@ -90,22 +97,23 @@ func (s *P2PService) Stop() error {
 }
 
 // Connect adds a peer by its multiaddress, storing its AddrInfo for future use
-func (s *P2PService) Connect(addrStr string) error {
-    maddr, err := multiaddr.NewMultiaddr(addrStr)
-    if err != nil {
-        return fmt.Errorf("invalid multiaddr %s: %w", addrStr, err)
-    }
-    info, err := peer.AddrInfoFromP2pAddr(maddr)
-    if err != nil {
-        return fmt.Errorf("failed to parse AddrInfo: %w", err)
-    }
-    // add to peerstore
-    s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
-    // track in-memory
-    s.peerLock.Lock()
-    s.connPeers[info.ID] = *info
-    s.peerLock.Unlock()
-    return nil
+func (s *P2PService) Connect(peer utils.PeerInfo){
+	info, err := peer.ToAddrInfo()
+	if err != nil{
+		fmt.Printf("Failed to parse PeerInfo into AddrInfo: %v", err)
+		return 
+	}
+	
+	s.peerLock.Lock()
+	s.peers[info.ID] = *info
+	defer s.peerLock.Unlock()
+	s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.PermanentAddrTTL)
+	if err := s.host.Connect(s.ctx, *info); err !=nil{
+		log.Printf("Could Not Connect to %s", info.ID)
+		return 
+	}
+
+	s.connPeers[info.ID] = *info
 }
 
 // ListPeers returns the IDs of connected peers
@@ -127,35 +135,68 @@ func (s *P2PService) serveOutbound() {
             return
         case pmsg := <-s.Outbound:
           s.handleMsg(pmsg)
-            // data, err := EncodeMessage(msg)
-            // if err != nil {
-            //     fmt.Printf("[P2P] encode message error: %v\n", err)
-            //     continue
-            // }
-            // s.broadcastBytes(data)
         }
     }
 }
 
-// broadcastBytes opens a fresh stream to each peer and writes the payload
-func (s *P2PService) broadcastBytes(data []byte) {
-    s.peerLock.RLock()
-    defer s.peerLock.RUnlock()
-    for _, info := range s.peers {
-        go func(pi peer.AddrInfo) {
-            stream, err := s.host.NewStream(s.ctx, pi.ID, s.protocolID)
-            if err != nil {
-                // could not open stream; skip
-                return
-            }
-            defer stream.Close()
-            // write the raw length-prefixed payload
-            if _, err := stream.Write(data); err != nil {
-                // skip on error
-                return
-            }
-        }(info)
-    }
+func (s *P2PService) sendMsg(to peer.ID, msg *Message){
+	s.peerLock.RLock()
+	defer s.peerLock.RUnlock()
+	
+	
+	stream, err := s.host.NewStream(s.ctx, to, s.protocolID)
+	if err != nil{
+		log.Printf("Failed to open Stream to peer with ID %s", to)
+		return 
+	}
+	defer stream.Close()
+	
+	bytes, err := EncodeMessage(msg)
+	if err != nil{
+		log.Printf("Failed to encode message: %v", err)
+		return
+	}
+	
+	n , err := stream.Write(bytes)
+	if err != nil{
+		log.Printf("Failed to write to stream: %v", err)
+		return 
+	}
+	
+	log.Printf("Sent %d bytes to %s!", n, to)
+}
+
+
+func (s *P2PService) broadcastMsg(msg *Message){
+	s.peerLock.RLock()
+	defer s.peerLock.RUnlock()
+	
+	data, err := EncodeMessage(msg)
+	if err != nil{
+		log.Printf("Failed to encode message: %v", err)
+		return
+	}
+	
+	for peerID, _ := range s.peers{
+		go s.sendBytes(peerID, data)
+	}
+}
+
+func (s *P2PService) sendBytes(to peer.ID, data []byte){
+	stream, err := s.host.NewStream(s.ctx, to, s.protocolID)
+	if err != nil{
+		log.Printf("Failed to open Stream to peer with ID %s", to)
+		return 
+	}
+	defer stream.Close()
+	
+	n , err := stream.Write(data)
+	if err != nil{
+		log.Printf("Failed to write to stream: %v", err)
+		return 
+	}
+	
+	log.Printf("Broadcasted %d bytes to %s!", n, to)
 }
 
 // handleStream processes an incoming libp2p stream, decoding messages
@@ -192,9 +233,9 @@ func (s *P2PService) handleStream(stream network.Stream) {
 func (s *P2PService) handleMsg(pmsg *PeerMessage){
   switch pmsg.Msg.Type{
     case MsgTypeGossip:
-      s.broadcastMsg(pmsg)
+      s.broadcastMsg(pmsg.Msg)
     default:
-     s.sendToPeer(pmsg) 
+     s.sendMsg(pmsg.To, pmsg.Msg) 
   }
 }
 
@@ -215,14 +256,6 @@ func (s *P2PService) handleBlockIn(msg *PeerMessage){
 }
 
 func (s *P2PService) handleHiIn(msg *PeerMessage){
-
-}
-
-func (s *P2PService) sendToPeer(msg *PeerMessage){
-
-}
-
-func (s *P2PService) broadcastMsg(msg *PeerMessage){
 
 }
 
