@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/hex"
 	"log"
+	"strconv"
 
 	"github.com/dgraph-io/badger/v4"
 )
 
 const(
-	dbPath = "./tmp/blocks"
+	baseDBPath= "./tmp/blocks_"
 )
 
 type BlockChain struct{
@@ -113,11 +114,12 @@ func (chain *BlockChain) ListBlocks() []*Block{
 }
 
 
-func InitBlockChain() *BlockChain{
-	var lastHash []byte 
+func InitBlockChain(id int) *BlockChain{
+	var lastHash []byte
 
+	dbPath := baseDBPath + strconv.Itoa(id) 
 	opts := badger.DefaultOptions(dbPath)
-	opts.ValueLogFileSize = 1 << 27
+	opts.ValueLogFileSize = 1 << 25
 
 	db, err := badger.Open(opts)
 	Handle(err)

@@ -8,8 +8,8 @@ import (
 	"log"
 
 	"blockchain-service/internal/blockchain"
+	"blockchain-service/internal/utils"
 
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // BlockchainNode ties together the P2P service and the blockchain logic
@@ -20,17 +20,14 @@ type BlockchainNode struct {
     p2p         *P2PService
     inbound     chan PeerMessage
     outbound    chan *PeerMessage
-    id          string
     version     string
 }
 
 // NewBlockchainNode constructs a new node with given parameters
 func NewBlockchainNode(
     parentCtx context.Context,
-    id string,
     version string,
-    listenAddr string,
-    staticPeers []peer.ID,
+    listenAddr utils.PeerInfo,
     chain *blockchain.BlockChain,
 ) (*BlockchainNode, error) {
     ctx, cancel := context.WithCancel(parentCtx)
@@ -47,20 +44,14 @@ func NewBlockchainNode(
         p2p:         p2pSvc,
         inbound:     p2pSvc.Inbound,
         outbound:    p2pSvc.Outbound,
-        id:          id,
         version:     version,
     }
     return node, nil
 }
 
 // Run starts the P2P service and enters the main event loop
-func (n *BlockchainNode) Run() error {
-    // start networking
-    // n.p2p.Start(n.staticPeers)
-    // send initial HELLO
-    // hello := NewHelloMessage(n.id, n.chain.Height(), n.version, n.staticPeers)
-    // n.outbound <- hello
-
+func (n *BlockchainNode) Run(staticPeers []utils.PeerInfo) error {
+    n.p2p.Start(staticPeers)
     for {
         select {
         case <-n.ctx.Done():

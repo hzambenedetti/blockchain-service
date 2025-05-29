@@ -46,11 +46,13 @@ func NewP2PService(parentCtx context.Context, hostInfo utils.PeerInfo , protoID 
   	
 		listenAddr, err := multiaddr.NewMultiaddr(hostInfo.Address)
 		if err != nil{
+			cancel()
 			return nil, fmt.Errorf("Failed to create p2p address: %v", err)
 		}
 
 		privKey, err := utils.UnmarshalPrivateKey(hostInfo.PrivKey)
 		if err != nil{
+			cancel()
 			return nil, fmt.Errorf("Failed to UnmarshalPrivateKey: %v", err)
 		}
 
@@ -209,16 +211,16 @@ func (s *P2PService) handleStream(stream network.Stream) {
     log.Printf("Failed to decode text message %v", err)
     return
   }
-
-	fromAddrInfo, err := peer.AddrInfoFromP2pAddr(stream.Conn().RemoteMultiaddr())
+		
+	fromAddrInfo, err := peer.AddrInfoFromString(stream.Conn().RemoteMultiaddr().String() + "/p2p/" + stream.Conn().RemotePeer().String())
 	if err != nil{
-		fmt.Printf("Failed to extract AddrInfo from P2PAddr: %v", err)
+		fmt.Printf("Failed to extract AddrInfo from P2PAddr 1: %v", err)
 		return 
 	}
 
-	toAddrInfo, err := peer.AddrInfoFromP2pAddr(s.host.Addrs()[0])
+	toAddrInfo, err := peer.AddrInfoFromString(s.host.Addrs()[0].String() + "/p2p/" + s.host.ID().String())
 	if err != nil{
-		fmt.Printf("Failed to extract AddrInfo from P2PAddr: %v", err)
+		fmt.Printf("Failed to extract AddrInfo from P2PAddr 2: %v", err)
 		return 
 	}
 
