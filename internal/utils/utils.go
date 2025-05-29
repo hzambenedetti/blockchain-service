@@ -59,3 +59,4 @@ func UnmarshalPrivateKey(encoded string) (crypto.PrivKey, error) {
 	}
 	return crypto.UnmarshalPrivateKey(privBytes)
 }
+

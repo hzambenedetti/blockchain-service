@@ -1,13 +1,15 @@
 package p2p
 
 import (
-    "bytes"
-    "encoding/binary"
-    "encoding/json"
-    "fmt"
-    "io"
-		
-		"blockchain-service/internal/blockchain"
+	"bytes"
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
+	"io"
+
+	"blockchain-service/internal/blockchain"
+
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // Message types
@@ -27,7 +29,7 @@ type Message struct {
     ID        string   `json:"id,omitempty"`       // sender node ID
     Height    uint64   `json:"height,omitempty"`   // sender chain height
     Version   string   `json:"version,omitempty"`  // protocol version
-    Peers     []string `json:"peers,omitempty"`    // list of known peers (multiaddrs)
+    Peers     []*peer.AddrInfo      `json:"peers,omitempty"`    // list of known peers (multiaddrs)
     // INV / GETBLOCK fields
     BlockHash string   `json:"blockHash,omitempty"`
     // BLOCK field
@@ -48,7 +50,7 @@ func NewGetBlockMsg(blockHash string) *Message {
 func NewBlockMsg(blk *blockchain.Block) *Message {
     return &Message{Type: MsgTypeBlock, Block: blk}
 }
-func NewHiMsg(id string, height uint64, version string, peers []string) *Message {
+func NewHiMsg(id string, height uint64, version string, peers []*peer.AddrInfo) *Message {
     return &Message{Type: MsgTypeHi, ID: id, Height: height, Version: version, Peers: peers}
 }
 

@@ -19,8 +19,8 @@ import (
 
 // PeerMessage wraps an inbound protocol Message with its sender ID
 type PeerMessage struct {
-    From peer.ID
-    To peer.ID
+    From *peer.AddrInfo
+    To *peer.AddrInfo
     Msg  *Message
 }
 
@@ -81,12 +81,17 @@ func NewP2PService(parentCtx context.Context, hostInfo utils.PeerInfo , protoID 
 
 // Start launches background tasks: dialing static peers and outbound broadcaster
 func (s *P2PService) Start(staticPeers []utils.PeerInfo) {
-    // Dial static peers
-    for _, peer := range staticPeers {
-        go s.Connect(peer)
-    }
-    // Start outbound broadcaster
-    go s.serveOutbound()
+	// Dial static peers
+	for _, peer := range staticPeers {
+		info, err := peer.ToAddrInfo()
+		if err != nil{
+			fmt.Printf("Failed to parse PeerInfo into AddrInfo: %v", err)
+			continue
+		}
+		go s.Connect(info)
+	}
+	// Start outbound broadcaster
+	go s.serveOutbound()
 }
 
 // Stop terminates the service and closes resources
@@ -97,13 +102,7 @@ func (s *P2PService) Stop() error {
 }
 
 // Connect adds a peer by its multiaddress, storing its AddrInfo for future use
-func (s *P2PService) Connect(peer utils.PeerInfo){
-	info, err := peer.ToAddrInfo()
-	if err != nil{
-		fmt.Printf("Failed to parse PeerInfo into AddrInfo: %v", err)
-		return 
-	}
-	
+func (s *P2PService) Connect(info *peer.AddrInfo){
 	s.peerLock.Lock()
 	s.peers[info.ID] = *info
 	defer s.peerLock.Unlock()
@@ -129,14 +128,14 @@ func (s *P2PService) ListPeers() []peer.ID {
 
 // serveOutbound listens on the Outbound channel and broadcasts each message
 func (s *P2PService) serveOutbound() {
-    for {
-        select {
-        case <-s.ctx.Done():
-            return
-        case pmsg := <-s.Outbound:
-          s.handleMsg(pmsg)
-        }
-    }
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case pmsg := <-s.Outbound:
+			s.handleMsg(pmsg)
+		}
+	}
 }
 
 func (s *P2PService) sendMsg(to peer.ID, msg *Message){
@@ -211,10 +210,22 @@ func (s *P2PService) handleStream(stream network.Stream) {
     return
   }
 
+	fromAddrInfo, err := peer.AddrInfoFromP2pAddr(stream.Conn().RemoteMultiaddr())
+	if err != nil{
+		fmt.Printf("Failed to extract AddrInfo from P2PAddr: %v", err)
+		return 
+	}
+
+	toAddrInfo, err := peer.AddrInfoFromP2pAddr(s.host.Addrs()[0])
+	if err != nil{
+		fmt.Printf("Failed to extract AddrInfo from P2PAddr: %v", err)
+		return 
+	}
+
   // deliver to application
   pm := PeerMessage{
-    From: stream.Conn().RemotePeer(),
-    To: s.host.ID(),
+    From: fromAddrInfo, 
+    To: toAddrInfo,
     Msg: msg,
   }
   switch pm.Msg.Type{
@@ -235,38 +246,50 @@ func (s *P2PService) handleMsg(pmsg *PeerMessage){
     case MsgTypeGossip:
       s.broadcastMsg(pmsg.Msg)
     default:
-     s.sendMsg(pmsg.To, pmsg.Msg) 
+     s.sendMsg(pmsg.To.ID, pmsg.Msg) 
   }
 }
 
 func (s *P2PService) handleHelloIn(msg *PeerMessage){
+	for _, info := range msg.Msg.Peers{
+		if _, ok := s.peers[info.ID]; ok{
+			continue
+		}
+		go s.Connect(info)
+	}
+	
+	s.peerLock.Lock()
+	defer s.peerLock.Unlock()
+	if _, ok := s.peers[msg.From.ID]; !ok{
+		s.host.Peerstore().AddAddr(msg.From.ID, msg.From.Addrs[0], peerstore.PermanentAddrTTL)
+		s.peers[msg.From.ID] = *msg.From
+	}
 
+	peers := make([]*peer.AddrInfo, 0)
+	for _, info := range s.peers{
+		peers = append(peers, &info)
+	}
+	hiMsg := NewHiMsg("", 0, string(s.protocolID) ,peers)
+	s.sendMsg(msg.To.ID, hiMsg)
 }
 
 func (s *P2PService) handleGossipIn(msg *PeerMessage){
-
+	s.Inbound <- *msg
 }
 
 func (s *P2PService) handleGetBlockIn(msg *PeerMessage){
-
+	s.Inbound <- *msg
 }
 
 func (s *P2PService) handleBlockIn(msg *PeerMessage){
-
+	s.Inbound <- *msg
 }
 
 func (s *P2PService) handleHiIn(msg *PeerMessage){
-
+	for _, info := range msg.Msg.Peers{
+		if _, ok := s.peers[info.ID]; ok{
+			continue
+		}
+		go s.Connect(info)
+	}
 }
-
-// func (s *P2PService) handleGossipOut(msg *Message){
-//
-// }
-//
-// func (s *P2PService) handleGetBlockOut(msg *Message){
-//
-// }
-//
-// func (s *P2PService) handleBlockOut(msg *Message){
-//
-// }
