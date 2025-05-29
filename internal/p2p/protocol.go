@@ -1,21 +1,25 @@
 package p2p
 
 import (
-    "bytes"
-    "encoding/binary"
-    "encoding/json"
-    "fmt"
-    "io"
-		
-		"blockchain-service/internal/blockchain"
+	"bytes"
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
+	"io"
+
+	"blockchain-service/internal/blockchain"
+
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // Message types
 const (
     MsgTypeHello    = "HELLO"
-    MsgTypeInv      = "INV"
+    MsgTypeGossip      = "GOSSIP"
     MsgTypeGetBlock = "GETBLOCK"
     MsgTypeBlock    = "BLOCK"
+    MsgTypeHi    = "HI"
+    MsgTypeWhat    = "WHAT"
 )
 
 // Message is the envelope for all protocol messages
@@ -25,7 +29,7 @@ type Message struct {
     ID        string   `json:"id,omitempty"`       // sender node ID
     Height    uint64   `json:"height,omitempty"`   // sender chain height
     Version   string   `json:"version,omitempty"`  // protocol version
-    Peers     []string `json:"peers,omitempty"`    // list of known peers (multiaddrs)
+    Peers     []*peer.AddrInfo      `json:"peers,omitempty"`    // list of known peers (multiaddrs)
     // INV / GETBLOCK fields
     BlockHash string   `json:"blockHash,omitempty"`
     // BLOCK field
@@ -34,18 +38,22 @@ type Message struct {
 
 
 // Constructor helpers
-func NewHelloMessage(id string, height uint64, version string, peers []string) *Message {
-    return &Message{Type: MsgTypeHello, ID: id, Height: height, Version: version, Peers: peers}
+func NewHelloMsg(id string, height uint64, version string) *Message {
+    return &Message{Type: MsgTypeHello, ID: id, Height: height, Version: version}
 }
-func NewInvMessage(blockHash string, height uint64) *Message {
-    return &Message{Type: MsgTypeInv, BlockHash: blockHash, Height: height}
+func NewGossipMsg(block *blockchain.Block, height uint64) *Message {
+  return &Message{Type: MsgTypeGossip, Height: height, Block: block}
 }
-func NewGetBlockMessage(blockHash string) *Message {
+func NewGetBlockMsg(blockHash string) *Message {
     return &Message{Type: MsgTypeGetBlock, BlockHash: blockHash}
 }
-func NewBlockMessage(blk *blockchain.Block) *Message {
+func NewBlockMsg(blk *blockchain.Block) *Message {
     return &Message{Type: MsgTypeBlock, Block: blk}
 }
+func NewHiMsg(id string, height uint64, version string, peers []*peer.AddrInfo) *Message {
+    return &Message{Type: MsgTypeHi, ID: id, Height: height, Version: version, Peers: peers}
+}
+
 
 // EncodeMessage serializes a Message to length-prefixed JSON
 func EncodeMessage(msg *Message) ([]byte, error) {

@@ -4,25 +4,41 @@ import (
 	"blockchain-service/internal/api"
 	"blockchain-service/internal/blockchain"
 	"blockchain-service/internal/p2p"
+	"blockchain-service/internal/utils"
 	"context"
+	"flag"
 	"log"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-var staticPeers = [1]string{"localhost:3002"}
+const(
+	peersPath = "peers.json"
+)
 
 func main() {
-	
-	blockchain := blockchain.InitBlockChain()	
+	nodeIdx := flag.Int("nodeIdx", 0, "Node index")
+	flag.Parse()
+
+	peers, err := utils.LoadPeers(peersPath)
+	if err != nil{
+		log.Panicf("Error loading peers: %v", err)
+	}
+	if *nodeIdx >= len(peers){
+		log.Panicf("Node at index %d does not exist", *nodeIdx)
+	}
+
+	peer := peers[*nodeIdx]
+
+
+	blockchain := blockchain.InitBlockChain(*nodeIdx)	
 	ctx := context.Background() 
 
 	node, err := p2p.NewBlockchainNode(
 		ctx,
-		"0",
-		"1",
-		"/ip4/0.0.0.0/udp/9000/quic-v1",
-		staticPeers[:],
+		"bc/1.0.0",
+		peer,
 		blockchain,
 	)
 
@@ -33,8 +49,15 @@ func main() {
 	pdfHandler := &api.NodeAPIHandler{
 		Node: node,
 	}
-
-	go node.Run()
+	
+	hostPeers := make([]utils.PeerInfo, 0)
+	for i, p := range peers{
+		if i == *nodeIdx{
+			continue 
+		}
+		hostPeers = append(hostPeers, p)
+	}
+	go node.Run(hostPeers)
 
 
 	app := fiber.New()
@@ -45,6 +68,7 @@ func main() {
 
 	app.Post("/upload", pdfHandler.UploadHash)
 	app.Get("/list", pdfHandler.GetBlocks)
-
-	app.Listen(":3000")
+	
+	restAPIPort := 3000 + *nodeIdx
+	app.Listen(":" + strconv.Itoa(restAPIPort))
 }
