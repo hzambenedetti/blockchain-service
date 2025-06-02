@@ -1,6 +1,7 @@
 package api
 
 import (
+	"blockchain-service/internal/blockchain"
 	"blockchain-service/internal/p2p"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,11 +12,12 @@ type NodeAPIHandler struct {
 }
 
 func (h *NodeAPIHandler) UploadHash(c *fiber.Ctx) error{
-	hash := c.Query("hash", "")
-	if hash == ""{
-		return c.SendStatus(400)
+	var blockData blockchain.BlockData 
+	if err := c.BodyParser(blockData); err != nil{
+		return c.SendStatus(401)
 	}
-	block, err := h.Node.AddBlockAPI(hash)
+
+	block, err := h.Node.AddBlockAPI(&blockData)
 
 	if err != nil{
 		return c.SendStatus(500)

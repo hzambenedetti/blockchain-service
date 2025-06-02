@@ -1,21 +1,45 @@
 package blockchain
 
 import (
-	"log"
 	"bytes"
 	"encoding/gob"
+	"log"
+	"time"
 )
 
 type Block struct{
 	Hash []byte  `json:"hash"`
-	Data []byte  `json:"data"`
 	PrevHash []byte `json:"prev_hash"`
 	Nonce int `json:"nonce"`
+	Timestamp int64 `json:"timestamp"` 
+	Data BlockData `json:"data"`
 }
 
+type BlockData struct{
+	Hash []byte	`json:"hash"`
+	DocumentID string	`json:"documentId"`
+	NotaryID string `json:"notaryId"`
+	UserID string	`json:"userId"`
+	CNPJ string `json:"cnpj"`
+}
 
-func CreateBlock(data string, PrevHash []byte) *Block{
-	block := &Block{[]byte{}, []byte(data), PrevHash, 0}
+func (bd *BlockData) Serialize() []byte{
+	var res bytes.Buffer
+	encoder := gob.NewEncoder(&res)
+
+	err := encoder.Encode(bd)
+	Handle(err)
+	return res.Bytes()
+}
+
+func CreateBlock(data *BlockData, PrevHash []byte) *Block{
+	block := &Block{
+		[]byte{}, 
+		PrevHash, 
+		0,
+		time.Now().UnixMilli(),
+		*data, 
+	}
 	
 	pow := NewProof(block)
 	nonce, hash := pow.Run()
@@ -27,7 +51,14 @@ func CreateBlock(data string, PrevHash []byte) *Block{
 }
 
 func Genesis() *Block{
-	return CreateBlock("Genesis", []byte{})
+	blockData := BlockData{
+		[]byte{},
+		"Genesis",
+		"Genesis",
+		"Genesis",
+		"Genesis",
+	}
+	return CreateBlock(&blockData, []byte{})
 }
 
 func (b *Block) Serialize() []byte{
