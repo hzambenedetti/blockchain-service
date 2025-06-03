@@ -5,6 +5,7 @@ import (
 	"blockchain-service/internal/p2p"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 )
 
 type NodeAPIHandler struct {
@@ -13,18 +14,21 @@ type NodeAPIHandler struct {
 
 func (h *NodeAPIHandler) UploadHash(c *fiber.Ctx) error{
 	var blockDataAPI models.BlockDataAPI 
-	if err := c.BodyParser(blockDataAPI); err != nil{
+	if err := c.BodyParser(&blockDataAPI); err != nil{
+		log.Errorf("Failed to parse body to BlockDataAPI type: %v", err)
 		return c.SendStatus(fiber.ErrBadRequest.Code)
 	}
 	
 	blockData, err := blockDataAPI.ToBlockData()
 	if err != nil{
+		log.Errorf("Failed to convert BlockDataAPI to BlockData: %v", err)
 		return c.SendStatus(fiber.ErrBadRequest.Code)
 	}
 
 	block, err := h.Node.AddBlockAPI(blockData)
 
 	if err != nil{
+		log.Errorf("Failed to add block to blockchain %v", err)
 		return c.SendStatus(500)
 	}
 
