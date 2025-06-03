@@ -3,6 +3,7 @@ package api
 import (
 	"blockchain-service/internal/models"
 	"blockchain-service/internal/p2p"
+	"encoding/hex"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
@@ -38,8 +39,26 @@ func (h *NodeAPIHandler) UploadHash(c *fiber.Ctx) error{
 }
 
 func (h *NodeAPIHandler) VerifyHash(c *fiber.Ctx) error{
-	//TODO
-	return nil
+	hash := c.Query("hash", "")
+	if hash == ""{
+		log.Errorf("Cannot verify the existance of empty hash")
+		return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
+			"message": "Request must have a hash query parameter",
+		})
+	}
+	
+	hashBytes, err := hex.DecodeString(hash)
+	if err != nil{
+		log.Errorf("Failed to convert provided string to bytes: %v", err)
+		return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
+			"message": "The provided hash is invalid",
+		})
+	}
+
+	containsHash := h.Node.ContainsFileHashAPI(hashBytes)
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"result": containsHash,
+	})
 }
 
 func (h *NodeAPIHandler) GetBlocks(c *fiber.Ctx) error{

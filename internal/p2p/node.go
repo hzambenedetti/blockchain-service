@@ -132,3 +132,7 @@ func (n *BlockchainNode) AddBlockAPI(data *blockchain.BlockData) (*blockchain.Bl
 func (n *BlockchainNode) ListBlocksAPI() ([]*blockchain.Block, error){
 	return n.chain.ListBlocks(), nil	
 }
+
+func (n *BlockchainNode) ContainsFileHashAPI(hash []byte) bool{ 
+	return n.chain.ContainsFileHash(hash) 
+}

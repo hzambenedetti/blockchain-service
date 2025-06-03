@@ -113,6 +113,25 @@ func (chain *BlockChain) ListBlocks() []*Block{
 	return blocks
 }
 
+func (chain *BlockChain) ContainsFileHash(hash []byte) bool{
+	var block *Block 
+
+	iter := chain.Iterator()
+	for{
+		block = iter.Next()
+		fileHash := block.Data.Hash
+		if bytes.Equal(hash, fileHash){
+			return true
+		}
+
+		if len(block.PrevHash) == 0{
+			break
+		}
+	}
+
+	return false
+}
+
 
 func InitBlockChain(id int) *BlockChain{
 	var lastHash []byte
