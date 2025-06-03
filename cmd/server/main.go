@@ -68,6 +68,7 @@ func main() {
 
 	app.Post("/upload", pdfHandler.UploadHash)
 	app.Get("/list", pdfHandler.GetBlocks)
+	app.Get("/verify", pdfHandler.VerifyHash)
 	
 	restAPIPort := 3000 + *nodeIdx
 	app.Listen(":" + strconv.Itoa(restAPIPort))
