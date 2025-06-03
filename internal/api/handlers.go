@@ -42,7 +42,9 @@ func (h *NodeAPIHandler) VerifyHash(c *fiber.Ctx) error{
 	hash := c.Query("hash", "")
 	if hash == ""{
 		log.Errorf("Cannot verify the existance of empty hash")
-		return c.SendStatus(fiber.ErrBadRequest.Code)
+		return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
+			"message": "Request must have a hash query parameter",
+		})
 	}
 	
 	hashBytes, err := hex.DecodeString(hash)
