@@ -20,7 +20,7 @@ type BlockChain struct{
 }
 
 
-func (chain *BlockChain) CreateInsertBlock(data string) *Block{
+func (chain *BlockChain) CreateInsertBlock(data *BlockData) *Block{
 	var lastHash []byte
 	
 	err := chain.Database.View(func(txn *badger.Txn) error{

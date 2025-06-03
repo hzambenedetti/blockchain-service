@@ -123,8 +123,8 @@ func (n *BlockchainNode) Status() (uint64, int) {
     return n.chain.Height(), len(n.p2p.ListPeers())
 }
 
-func (n *BlockchainNode) AddBlockAPI(hash string) (*blockchain.Block, error){ 
-	block := n.chain.CreateInsertBlock(hash)
+func (n *BlockchainNode) AddBlockAPI(data *blockchain.BlockData) (*blockchain.Block, error){ 
+	block := n.chain.CreateInsertBlock(data)
   n.outbound <- &PeerMessage{Msg: NewGossipMsg(block, n.chain.Height())}
 	return block, nil
 }
