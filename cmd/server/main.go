@@ -8,9 +8,11 @@ import (
 	"context"
 	"flag"
 	"log"
+	"os"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 )
 
 const(
@@ -19,6 +21,13 @@ const(
 
 func main() {
 	nodeIdx := flag.Int("nodeIdx", 0, "Node index")
+	fiberPort := flag.Int("fiberPort", 3100, "API Port")
+	
+	err := godotenv.Load()
+	if err != nil{
+		log.Panicf("Failed to load environment variables")
+	}
+
 	flag.Parse()
 
 	peers, err := utils.LoadPeers(peersPath)
@@ -70,6 +79,5 @@ func main() {
 	app.Get("/list", pdfHandler.GetBlocks)
 	app.Get("/verify", pdfHandler.VerifyHash)
 	
-	restAPIPort := 3000 + *nodeIdx
-	app.Listen(":" + strconv.Itoa(restAPIPort))
+	app.Listen(os.Getenv("BASE_URL") + ":" + strconv.Itoa(*fiberPort))
 }
