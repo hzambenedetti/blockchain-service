@@ -12,6 +12,11 @@ Create the database and binaries directories and build the program and build the
     mkdir -p tmp/blocks_0 tmp/blocks_1 tmp/blocks_2 bin
     go build -o bin/server ./cmd/server/main.go
 ```
+you must also create a .env file based on the .env.example one.
+If you wish to run the blockchain in localhost, just run the following command:
+```bash
+cp .env.example .env
+```
 
 
 ## Run
