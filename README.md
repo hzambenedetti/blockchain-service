@@ -4,6 +4,7 @@
 
 - Go programming language v1.24.4 can be downloaded in it's [official website](https://go.dev/)
 - Internet connection (used to install go packages, not needed otherwise)
+- Linux system
 
 ## Setup 
 
